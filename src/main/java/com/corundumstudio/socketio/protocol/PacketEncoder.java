@@ -19,10 +19,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.base64.Base64;
+import io.netty.handler.codec.base64.Base64Dialect;
 import io.netty.util.CharsetUtil;
 
 import java.io.IOException;
-import java.nio.charset.CharsetEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -33,6 +34,7 @@ import com.corundumstudio.socketio.Configuration;
 public class PacketEncoder {
 
     private static final Pattern QUOTES_PATTERN = Pattern.compile("\"", Pattern.LITERAL);
+    private static final byte[] BINARY_HEADER = "b4".getBytes(CharsetUtil.UTF_8);
     private static final byte[] B64_DELIMITER = new byte[] {':'};
     private static final byte[] JSONP_HEAD = "___eio[".getBytes(CharsetUtil.UTF_8);
     private static final byte[] JSONP_START = "](\"".getBytes(CharsetUtil.UTF_8);
@@ -83,7 +85,17 @@ public class PacketEncoder {
             buf.writeBytes(B64_DELIMITER);
             buf.writeBytes(packetBuf);
 
+            packetBuf.release();
+
             i++;
+
+            for (ByteBuf attachment : packet.getAttachments()) {
+                ByteBuf encodedBuf = Base64.encode(attachment, Base64Dialect.URL_SAFE);
+                buf.writeBytes(toChars(encodedBuf.readableBytes() + 2));
+                buf.writeBytes(B64_DELIMITER);
+                buf.writeBytes(BINARY_HEADER);
+                buf.writeBytes(encodedBuf);
+            }
         }
 
         if (jsonpMode) {
@@ -95,7 +107,7 @@ public class PacketEncoder {
             buf.release();
             // TODO optimize
             packet = QUOTES_PATTERN.matcher(packet).replaceAll("\\\\\"");
-//            packet = new String(packet.getBytes(CharsetUtil.UTF_8), CharsetUtil.ISO_8859_1);
+            packet = new String(packet.getBytes(CharsetUtil.UTF_8), CharsetUtil.ISO_8859_1);
             out.writeBytes(packet.getBytes(CharsetUtil.UTF_8));
 
             out.writeBytes(JSONP_END);
@@ -110,7 +122,16 @@ public class PacketEncoder {
                 break;
             }
             encodePacket(packet, buffer, allocator, false, false);
+
             i++;
+
+            for (ByteBuf attachment : packet.getAttachments()) {
+                buffer.writeByte(1);
+                buffer.writeBytes(longToBytes(attachment.readableBytes() + 1));
+                buffer.writeByte(0xff);
+                buffer.writeByte(4);
+                buffer.writeBytes(attachment);
+            }
         }
     }
 
@@ -227,8 +248,48 @@ public class PacketEncoder {
                 }
 
                 case MESSAGE: {
+
+                    ByteBuf encBuf = null;
+
+
+                    if (packet.getSubType() == PacketType.EVENT
+                            || packet.getSubType() == PacketType.ACK
+                            || packet.getSubType() == PacketType.ERROR) {
+
+                        List<Object> values = new ArrayList<Object>();
+                        if (packet.getSubType() == PacketType.EVENT
+                                || packet.getSubType() == PacketType.ERROR) {
+                            values.add(packet.getName());
+                        }
+
+                        encBuf = allocateBuffer(allocator);
+
+                        List<Object> args = packet.getData();
+                        values.addAll(args);
+                        ByteBufOutputStream out = new ByteBufOutputStream(encBuf);
+                        if (jsonp) {
+                            jsonSupport.writeJsonpValue(out, values);
+                        } else {
+                            jsonSupport.writeValue(out, values);
+                        }
+
+                        if (!jsonSupport.getArrays().isEmpty()) {
+                            packet.initAttachments(jsonSupport.getArrays().size());
+                            for (byte[] array : jsonSupport.getArrays()) {
+                                packet.addAttachment(Unpooled.wrappedBuffer(array));
+                            }
+                            packet.setSubType(PacketType.BINARY_EVENT);
+                        }
+                    }
+
                     byte subType = toChar(packet.getSubType().getValue());
                     buf.writeByte(subType);
+
+                    if (packet.hasAttachments()) {
+                        byte[] ackId = toChars(packet.getAttachments().size());
+                        buf.writeBytes(ackId);
+                        buf.writeByte('-');
+                    }
 
                     if (packet.getSubType() == PacketType.CONNECT) {
                         if (!packet.getNsp().isEmpty()) {
@@ -237,7 +298,7 @@ public class PacketEncoder {
                     } else {
                         if (!packet.getNsp().isEmpty()) {
                             buf.writeBytes(packet.getNsp().getBytes(CharsetUtil.UTF_8));
-                            buf.writeBytes(new byte[] {','});
+                            buf.writeByte(',');
                         }
                     }
 
@@ -246,25 +307,11 @@ public class PacketEncoder {
                         buf.writeBytes(ackId);
                     }
 
-                    List<Object> values = new ArrayList<Object>();
-
-                    if (packet.getSubType() == PacketType.EVENT
-                            || packet.getSubType() == PacketType.ERROR) {
-                        values.add(packet.getName());
+                    if (encBuf != null) {
+                        buf.writeBytes(encBuf);
+                        encBuf.release();
                     }
 
-                    if (packet.getSubType() == PacketType.EVENT
-                            || packet.getSubType() == PacketType.ACK
-                            || packet.getSubType() == PacketType.ERROR) {
-                        List<Object> args = packet.getData();
-                        values.addAll(args);
-                        ByteBufOutputStream out = new ByteBufOutputStream(buf);
-                        if (jsonp) {
-                            jsonSupport.writeJsonpValue(out, values);
-                        } else {
-                            jsonSupport.writeValue(out, values);
-                        }
-                    }
                     break;
                 }
             }
@@ -276,6 +323,8 @@ public class PacketEncoder {
                 buffer.writeBytes(longToBytes(length));
                 buffer.writeByte(0xff);
                 buffer.writeBytes(buf);
+
+                buf.release();
             }
         }
     }
@@ -290,7 +339,16 @@ public class PacketEncoder {
         return count;
     }
 
-    private boolean isValueFound(ByteBuf buffer, int index, ByteBuf search) {
+    public static int find(ByteBuf buffer, ByteBuf searchValue) {
+        for (int i = buffer.readerIndex(); i < buffer.readerIndex() + buffer.readableBytes(); i++) {
+            if (isValueFound(buffer, i, searchValue)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean isValueFound(ByteBuf buffer, int index, ByteBuf search) {
         for (int i = 0; i < search.readableBytes(); i++) {
             if (buffer.getByte(index + i) != search.getByte(i)) {
                 return false;

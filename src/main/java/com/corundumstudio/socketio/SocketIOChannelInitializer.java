@@ -99,7 +99,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
 
         JsonSupport jsonSupport = configuration.getJsonSupport();
         PacketEncoder encoder = new PacketEncoder(configuration, jsonSupport);
-        PacketDecoder decoder = new PacketDecoder(jsonSupport, ackManager);
+        PacketDecoder decoder = new PacketDecoder(jsonSupport, namespacesHub, ackManager);
 
         String connectPath = configuration.getContext() + "/";
 
@@ -111,10 +111,10 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
                 throw new IllegalStateException(e);
             }
         }
-        StoreFactory factory = configuration.getStoreFactory();
-        factory.init(namespacesHub, authorizeHandler, jsonSupport);
 
+        StoreFactory factory = configuration.getStoreFactory();
         authorizeHandler = new AuthorizeHandler(connectPath, scheduler, configuration, namespacesHub, factory, this, ackManager, clientsBox);
+        factory.init(namespacesHub, authorizeHandler, jsonSupport);
         xhrPollingTransport = new PollingTransport(decoder, authorizeHandler, clientsBox);
         webSocketTransport = new WebSocketTransport(isSsl, authorizeHandler, configuration, scheduler, clientsBox);
 
@@ -122,7 +122,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
 
 
         packetHandler = new InPacketHandler(packetListener, decoder, namespacesHub, configuration.getExceptionListener());
-        
+
         try {
             encoderHandler = new EncoderHandler(configuration, encoder);
         } catch (Exception e) {
@@ -173,7 +173,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(ks, configuration.getKeyStorePassword().toCharArray());
 
-        SSLContext serverContext = SSLContext.getInstance("TLS");
+        SSLContext serverContext = SSLContext.getInstance(configuration.getSSLProtocol());
         serverContext.init(kmf.getKeyManagers(), managers, null);
         return serverContext;
     }

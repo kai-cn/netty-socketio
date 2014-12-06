@@ -23,6 +23,7 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpHeaders.Values.KEEP_ALIVE;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler.Sharable;
@@ -34,6 +35,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.util.Attribute;
@@ -57,8 +59,8 @@ import com.corundumstudio.socketio.messages.HttpMessage;
 import com.corundumstudio.socketio.messages.OutPacketMessage;
 import com.corundumstudio.socketio.messages.XHROptionsMessage;
 import com.corundumstudio.socketio.messages.XHRPostMessage;
-import com.corundumstudio.socketio.protocol.PacketEncoder;
 import com.corundumstudio.socketio.protocol.Packet;
+import com.corundumstudio.socketio.protocol.PacketEncoder;
 
 @Sharable
 public class EncoderHandler extends ChannelOutboundHandlerAdapter {
@@ -200,7 +202,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         }
     }
 
-    private void handleWebsocket(OutPacketMessage msg, ChannelHandlerContext ctx) throws IOException {
+    private void handleWebsocket(final OutPacketMessage msg, ChannelHandlerContext ctx) throws IOException {
         while (true) {
             Queue<Packet> queue = msg.getClientHead().getPacketsQueue(msg.getTransport());
             Packet packet = queue.poll();
@@ -208,20 +210,28 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                 break;
             }
 
-            ByteBuf out = encoder.allocateBuffer(ctx.alloc());
+            final ByteBuf out = encoder.allocateBuffer(ctx.alloc());
             encoder.encodePacket(packet, out, ctx.alloc(), true, false);
 
             WebSocketFrame res = new TextWebSocketFrame(out);
             if (log.isTraceEnabled()) {
-                log.trace("Out message: {} sessionId: {}", out.toString(CharsetUtil.UTF_8),
-                        msg.getSessionId());
+                log.trace("Out message: {} sessionId: {}", out.toString(CharsetUtil.UTF_8), msg.getSessionId());
             }
             ctx.channel().writeAndFlush(res);
             if (!out.isReadable()) {
                 out.release();
             }
-        }
 
+            for (ByteBuf buf : packet.getAttachments()) {
+                ByteBuf outBuf = encoder.allocateBuffer(ctx.alloc());
+                outBuf.writeByte(4);
+                outBuf.writeBytes(buf);
+                if (log.isTraceEnabled()) {
+                    log.trace("Out attachment: {} sessionId: {}", ByteBufUtil.hexDump(outBuf), msg.getSessionId());
+                }
+                ctx.channel().writeAndFlush(new BinaryWebSocketFrame(outBuf));
+            }
+        }
     }
 
     private void handleHTTP(OutPacketMessage msg, ChannelHandlerContext ctx) throws IOException {

@@ -28,8 +28,8 @@ import com.corundumstudio.socketio.listener.ExceptionListener;
 import com.corundumstudio.socketio.messages.PacketsMessage;
 import com.corundumstudio.socketio.namespace.Namespace;
 import com.corundumstudio.socketio.namespace.NamespacesHub;
-import com.corundumstudio.socketio.protocol.PacketDecoder;
 import com.corundumstudio.socketio.protocol.Packet;
+import com.corundumstudio.socketio.protocol.PacketDecoder;
 import com.corundumstudio.socketio.protocol.PacketType;
 import com.corundumstudio.socketio.transport.NamespaceClient;
 
@@ -62,7 +62,10 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         }
         while (content.isReadable()) {
             try {
-                Packet packet = decoder.decodePackets(content, client.getSessionId());
+                Packet packet = decoder.decodePackets(content, client);
+                if (packet.hasAttachments() && !packet.isAttachmentsLoaded()) {
+                    return;
+                }
                 Namespace ns = namespacesHub.get(packet.getNsp());
                 if (ns == null) {
                     log.debug("Can't find namespace for endpoint: {}, sessionId: {} probably it was removed.", packet.getNsp(), client.getSessionId());

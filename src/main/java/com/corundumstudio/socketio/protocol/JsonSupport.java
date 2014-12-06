@@ -19,6 +19,7 @@ import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
 
 import java.io.IOException;
+import java.util.List;
 
 import com.corundumstudio.socketio.AckCallback;
 
@@ -34,14 +35,14 @@ public interface JsonSupport {
 
     AckArgs readAckArgs(ByteBufInputStream src, AckCallback<?> callback) throws IOException;
 
-    <T> T readValue(ByteBufInputStream src, Class<T> valueType) throws IOException;
+    <T> T readValue(String namespaceName, ByteBufInputStream src, Class<T> valueType) throws IOException;
 
     void writeValue(ByteBufOutputStream out, Object value) throws IOException;
 
-    <T> T readValue(String src, Class<T> valueType) throws IOException;
+    void addEventMapping(String namespaceName, String eventName, Class<?> ... eventClass);
 
-    void addEventMapping(String eventName, Class<?> ... eventClass);
+    void removeEventMapping(String namespaceName, String eventName);
 
-    void removeEventMapping(String eventName);
+    List<byte[]> getArrays();
 
 }

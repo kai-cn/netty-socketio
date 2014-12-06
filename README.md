@@ -48,6 +48,17 @@ Recent Releases
 ================================
 ####Please Note: trunk is current development branch.
 
+####05-Dec-2014 - version 1.7.5 released (SocketIO 1.0+ protocol)  
+Feature - `Configuration.sslProtocol` param added  
+Fixed - BinaryEvent ack handling  
+Fixed - BinaryEvent non b64 encoding/decoding  
+Fixed - buffer leak during packet encoding  
+
+####15-Nov-2014 - version 1.7.4 released (SocketIO 1.0+ protocol)  
+Fixed - packet encoding  
+Fixed - BinaryEvent encoding/decoding  
+Fixed - unchallenged connections handling  
+
 ####29-Sep-2014 - version 1.6.6 released
 Feature - `origin` setting added  
 Feature - `crossDomainPolicy` setting added  

@@ -102,7 +102,7 @@ public class Namespace implements SocketIONamespace {
             }
         }
         entry.addListener(listener);
-        jsonSupport.addEventMapping(eventName, eventClass);
+        jsonSupport.addEventMapping(name, eventName, eventClass);
     }
 
     @Override
@@ -117,7 +117,7 @@ public class Namespace implements SocketIONamespace {
             }
         }
         entry.addListener(listener);
-        jsonSupport.addEventMapping(eventName, eventClass);
+        jsonSupport.addEventMapping(name, eventName, eventClass);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -329,6 +329,10 @@ public class Namespace implements SocketIONamespace {
 
     public Collection<SocketIOClient> getAllClients() {
         return Collections.unmodifiableCollection(allClients.values());
+    }
+
+    public JsonSupport getJsonSupport() {
+        return jsonSupport;
     }
 
     public SocketIOClient getClient(UUID uuid) {

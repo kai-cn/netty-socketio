@@ -52,6 +52,8 @@ public class Configuration {
     private String hostname;
     private int port = -1;
 
+    private String sslProtocol = "TLSv1";
+
     private String keyStoreFormat = "JKS";
     private InputStream keyStore;
     private String keyStorePassword;
@@ -66,7 +68,7 @@ public class Configuration {
 
     private StoreFactory storeFactory = new MemoryStoreFactory();
 
-    private JsonSupport jsonSupport = new JacksonJsonSupport(this);
+    private JsonSupport jsonSupport = new JacksonJsonSupport();
 
     private AuthorizationListener authorizationListener = new SuccessAuthorizationListener();
 
@@ -121,6 +123,7 @@ public class Configuration {
 
         setAddVersionHeader(conf.isAddVersionHeader());
         setOrigin(conf.getOrigin());
+        setSSLProtocol(conf.getSSLProtocol());
     }
 
     public JsonSupport getJsonSupport() {
@@ -177,8 +180,7 @@ public class Configuration {
     /**
      * Ping interval
      *
-     * @param value
-     *            - time in seconds
+     * @param value - time in milliseconds
      */
     public void setPingInterval(int heartbeatIntervalSecs) {
         this.pingInterval = heartbeatIntervalSecs;
@@ -191,8 +193,7 @@ public class Configuration {
      * Ping timeout
      * Use <code>0</code> to disable it
      *
-     * @param value
-     *            - time in seconds
+     * @param value - time in milliseconds
      */
     public void setPingTimeout(int heartbeatTimeoutSecs) {
         this.pingTimeout = heartbeatTimeoutSecs;
@@ -480,5 +481,18 @@ public class Configuration {
     public void setUseLinuxNativeEpoll(boolean useLinuxNativeEpoll) {
         this.useLinuxNativeEpoll = useLinuxNativeEpoll;
     }
+
+    /**
+     * Set the name of the requested SSL protocol
+     *
+     * @param sslProtocol
+     */
+    public void setSSLProtocol(String sslProtocol) {
+        this.sslProtocol = sslProtocol;
+    }
+    public String getSSLProtocol() {
+        return sslProtocol;
+    }
+
 
 }

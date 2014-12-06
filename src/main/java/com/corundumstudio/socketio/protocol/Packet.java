@@ -15,7 +15,12 @@
  */
 package com.corundumstudio.socketio.protocol;
 
+import io.netty.buffer.ByteBuf;
+
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import com.corundumstudio.socketio.namespace.Namespace;
 
@@ -29,6 +34,10 @@ public class Packet implements Serializable {
     private String name;
     private String nsp = Namespace.DEFAULT_NAME;
     private Object data;
+
+    private ByteBuf dataSource;
+    private int attachmentsCount;
+    private List<ByteBuf> attachments = Collections.emptyList();
 
     protected Packet() {
     }
@@ -90,7 +99,33 @@ public class Packet implements Serializable {
     }
 
     public boolean isAckRequested() {
-        return getAckId() != null && getSubType().equals(PacketType.EVENT);
+        return getAckId() != null;
+    }
+
+    public void initAttachments(int attachmentsCount) {
+        this.attachmentsCount = attachmentsCount;
+        this.attachments = new ArrayList<ByteBuf>(attachmentsCount);
+    }
+    public void addAttachment(ByteBuf attachment) {
+        if (this.attachments.size() < attachmentsCount) {
+            this.attachments.add(attachment);
+        }
+    }
+    public List<ByteBuf> getAttachments() {
+        return attachments;
+    }
+    public boolean hasAttachments() {
+        return attachmentsCount != 0;
+    }
+    public boolean isAttachmentsLoaded() {
+        return this.attachments.size() == attachmentsCount;
+    }
+
+    public ByteBuf getDataSource() {
+        return dataSource;
+    }
+    public void setDataSource(ByteBuf dataSource) {
+        this.dataSource = dataSource;
     }
 
     @Override

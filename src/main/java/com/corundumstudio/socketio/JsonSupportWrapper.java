@@ -19,6 +19,7 @@ import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,27 +40,19 @@ class JsonSupportWrapper implements JsonSupport {
     public AckArgs readAckArgs(ByteBufInputStream src, AckCallback<?> callback) throws IOException {
         try {
             return delegate.readAckArgs(src, callback);
-        } catch (IOException e) {
-            src.reset();
-            log.error("Can't read ack args: " + src.readLine() + " for type: " + callback.getResultClass(), e);
-            return null;
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             src.reset();
             log.error("Can't read ack args: " + src.readLine() + " for type: " + callback.getResultClass(), e);
             return null;
         }
     }
 
-    public <T> T readValue(ByteBufInputStream src, Class<T> valueType) throws IOException {
+    public <T> T readValue(String namespaceName, ByteBufInputStream src, Class<T> valueType) throws IOException {
         try {
-            return delegate.readValue(src, valueType);
-        } catch (IOException e) {
+            return delegate.readValue(namespaceName, src, valueType);
+        } catch (Exception e) {
             src.reset();
-            log.error("Can't read value 1: " + src.readLine() + " for type: " + valueType, e);
-            return null;
-        } catch (RuntimeException e) {
-            src.reset();
-            log.error("Can't read value 2: " + src.readLine() + " for type: " + valueType, e);
+            log.error("Can't read value: " + src.readLine() + " for type: " + valueType, e);
             return null;
         }
     }
@@ -67,29 +60,27 @@ class JsonSupportWrapper implements JsonSupport {
     public void writeValue(ByteBufOutputStream out, Object value) throws IOException {
         try {
             delegate.writeValue(out, value);
-        } catch (IOException e) {
-            log.error("Can't write value: " + value, e);
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             log.error("Can't write value: " + value, e);
         }
     }
 
-    public void addEventMapping(String eventName, Class<?> ... eventClass) {
-        delegate.addEventMapping(eventName, eventClass);
+    public void addEventMapping(String namespaceName, String eventName, Class<?> ... eventClass) {
+        delegate.addEventMapping(namespaceName, eventName, eventClass);
     }
 
-    public void removeEventMapping(String eventName) {
-        delegate.removeEventMapping(eventName);
-    }
-
-    @Override
-    public <T> T readValue(String src, Class<T> valueType) throws IOException {
-        return delegate.readValue(src, valueType);
+    public void removeEventMapping(String namespaceName, String eventName) {
+        delegate.removeEventMapping(namespaceName, eventName);
     }
 
     @Override
     public void writeJsonpValue(ByteBufOutputStream out, Object value) throws IOException {
         delegate.writeJsonpValue(out, value);
+    }
+
+    @Override
+    public List<byte[]> getArrays() {
+        return delegate.getArrays();
     }
 
 }
